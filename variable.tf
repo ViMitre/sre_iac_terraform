@@ -51,3 +51,7 @@ variable "app_sg" {
 variable "db_sg" {
     default = "sg-0aada62f45642ac19"
 }
+
+variable "db_private_ip" {
+    default = "10.99.2.124"
+}

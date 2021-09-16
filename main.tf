@@ -139,6 +139,22 @@ resource "aws_instance" "app_instance" {
     tags = {
         Name = "sre_viktor_tf_app"
     }
+    connection {
+		type = "ssh"
+		user = "ubuntu"
+		private_key = "${file(var.aws_key_path)}"
+		host = "${self.associate_public_ip_address}"
+	} 
+
+	# export private ip of mongodb instance and start app
+	provisioner "remote-exec"{
+		inline = [
+      "echo \"export DB_HOST=${var.db_private_ip}\" >> /home/ubuntu/.bashrc",
+			"cd app",
+      "node seeds/seed.js",
+      "pm2 start app.js"
+		]
+	}
 }
 
 
