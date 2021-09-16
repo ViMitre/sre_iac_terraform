@@ -80,6 +80,7 @@ resource "aws_security_group" "db_sg"{
 		from_port = 27017
 		to_port = 27017
 		protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
 		
 	}
 
@@ -140,18 +141,19 @@ resource "aws_instance" "app_instance" {
         Name = "sre_viktor_tf_app"
     }
     connection {
-		type = "ssh"
-		user = "ubuntu"
-		private_key = "${file(var.aws_key_path)}"
-		host = "${self.associate_public_ip_address}"
+      type = "ssh"
+      user = "ubuntu"
+      private_key = var.aws_key_path
+      host = "${self.associate_public_ip_address}"
 	} 
 
 	# export private ip of mongodb instance and start app
 	provisioner "remote-exec"{
 		inline = [
-      "echo \"export DB_HOST=${var.db_private_ip}\" >> /home/ubuntu/.bashrc",
-			"cd app",
+      "echo \"export DB_HOST=${var.db_private_ip}:27017/posts\" >> /home/ubuntu/.bashrc",
+			"cd /home/ubuntu/app",
       "node seeds/seed.js",
+      "pm2 kill",
       "pm2 start app.js"
 		]
 	}
