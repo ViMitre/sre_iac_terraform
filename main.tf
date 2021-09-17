@@ -143,22 +143,42 @@ resource "aws_instance" "app_instance" {
     connection {
       type = "ssh"
       user = "ubuntu"
-      private_key = var.aws_key_path
-      host = "${self.associate_public_ip_address}"
+      private_key = file(var.aws_key_path)
+      host = aws_instance.app_instance.public_ip
 	} 
 
 	# export private ip of mongodb instance and start app
 	provisioner "remote-exec"{
 		inline = [
-      "echo \"export DB_HOST=${var.db_private_ip}:27017/posts\" >> /home/ubuntu/.bashrc",
+      "export DB_HOST=${aws_instance.db_instance.private_ip}:27017/posts",
+      "echo \"export DB_HOST=${aws_instance.db_instance.private_ip}:27017/posts\" >> /home/ubuntu/.bashrc",
 			"cd /home/ubuntu/app",
       "node seeds/seed.js",
-      "pm2 kill",
-      "pm2 start app.js"
+      "nohup node app.js > /dev/null 2>&1 &"
 		]
 	}
 }
 
+# Application Load Balancer
 
+/* resource "aws_lb" "sre-viktor-tf-lb" {
+  name               = "sre-viktor-tf-lb"
+  internal           = true
+  load_balancer_type = "application"
+  security_groups    = [var.app_sg]
+  subnets            = [var.subnet_id_public] */
+
+  /* enable_deletion_protection = true
+
+  access_logs {
+    bucket  = aws_s3_bucket.lb_logs.bucket
+    prefix  = "test-lb"
+    enabled = true
+  }
+
+  tags = {
+    Environment = "production"
+  } */
+}
 
 
