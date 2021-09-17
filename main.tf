@@ -14,7 +14,7 @@ resource "aws_vpc" "sre_viktor_tf_vpc" {
 
 # create subnets 
 resource "aws_subnet" "sre_viktor_tf_public" {
-  vpc_id     = var.vpc_id
+  vpc_id     = aws_vpc.sre_viktor_tf_vpc.id
   cidr_block = "10.99.1.0/24"
   map_public_ip_on_launch = "true"
   availability_zone = "eu-west-1a"
@@ -24,8 +24,19 @@ resource "aws_subnet" "sre_viktor_tf_public" {
   }
 }
 
+resource "aws_subnet" "sre_viktor_tf_public_b" {
+  vpc_id     = aws_vpc.sre_viktor_tf_vpc.id
+  cidr_block = "10.99.3.0/24"
+  map_public_ip_on_launch = "true"
+  availability_zone = "eu-west-1b"
+
+  tags = {
+    Name = "sre_viktor_tf_public"
+  }
+}
+
 resource "aws_subnet" "sre_viktor_tf_private" {
-  vpc_id     = var.vpc_id
+  vpc_id     = aws_vpc.sre_viktor_tf_vpc.id
   cidr_block = "10.99.2.0/24"
   availability_zone = "eu-west-1a"
 
@@ -37,7 +48,7 @@ resource "aws_subnet" "sre_viktor_tf_private" {
 resource "aws_security_group" "app_group" {
   name        = "sre_viktor_tf_sg_app"
   description = "SG for app"
-  vpc_id = var.vpc_id
+  vpc_id = aws_vpc.sre_viktor_tf_vpc.id
 # Inbound rules
   ingress {
     from_port       = "80"
@@ -73,7 +84,7 @@ resource "aws_security_group" "app_group" {
 resource "aws_security_group" "db_sg"{
 	name = "sre_viktor_tf_sg_db"
 	description = "Allow traffic on port 27017 for mongoDB"
-	vpc_id = var.vpc_id
+	vpc_id = aws_vpc.sre_viktor_tf_vpc.id
 
 	ingress {
 		description = "27017 from app instance"
@@ -99,7 +110,7 @@ resource "aws_security_group" "db_sg"{
 }
 
 resource "aws_internet_gateway" "sre_viktor_tf_ig" {
-  vpc_id = var.vpc_id
+  vpc_id = aws_vpc.sre_viktor_tf_vpc.id
 
   tags = {
     Name = "sre_viktor_tf_ig"
@@ -107,23 +118,23 @@ resource "aws_internet_gateway" "sre_viktor_tf_ig" {
 }
 
 resource "aws_route" "sre_viktor_route_ig" {
-    route_table_id = var.route_table_id
+    route_table_id = aws_vpc.sre_viktor_tf_vpc.default_route_table_id
     destination_cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.sre_viktor_tf_ig.id
 }
 
 resource "aws_route_table_association" "rta" {
-  subnet_id      = var.subnet_id_public
-  route_table_id = var.route_table_id
+  subnet_id      = aws_subnet.sre_viktor_tf_public.id
+  route_table_id = aws_vpc.sre_viktor_tf_vpc.default_route_table_id
 }
 
 resource "aws_instance" "db_instance" {
     ami = var.db_ami
-    subnet_id = var.subnet_id_private
+    subnet_id = aws_subnet.sre_viktor_tf_private.id
     instance_type = "t2.micro"
     key_name = var.aws_key_name
     associate_public_ip_address = false
-    vpc_security_group_ids = [var.db_sg]
+    vpc_security_group_ids = [aws_security_group.db_sg.id]
 
     tags = {
         Name = "sre_viktor_tf_db"
@@ -135,8 +146,8 @@ resource "aws_instance" "app_instance" {
     instance_type = "t2.micro"
     associate_public_ip_address = true
     key_name = var.aws_key_name
-    subnet_id = var.subnet_id_public
-    vpc_security_group_ids = [var.app_sg]
+    subnet_id = aws_subnet.sre_viktor_tf_public.id
+    vpc_security_group_ids = [aws_security_group.app_group.id]
     tags = {
         Name = "sre_viktor_tf_app"
     }
@@ -159,26 +170,88 @@ resource "aws_instance" "app_instance" {
 	}
 }
 
+
+# Launch template
+
+resource "aws_launch_configuration" "sre-viktor-tf-lt" {
+  name = "sre-viktor-tf-lt"
+  image_id = var.app_ami
+  instance_type = "t2.micro"
+  key_name = var.aws_key_name
+  security_groups = [aws_security_group.app_group.id]
+  associate_public_ip_address = true
+
+
+  /* user_data = < /usr/share/nginx/html/index.html
+chkconfig nginx on
+service nginx start
+  USER_DATA */
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
 # Application Load Balancer
 
-/* resource "aws_lb" "sre-viktor-tf-lb" {
+
+resource "aws_lb" "sre-viktor-tf-lb" {
   name               = "sre-viktor-tf-lb"
-  internal           = true
+  internal           = false
   load_balancer_type = "application"
-  security_groups    = [var.app_sg]
-  subnets            = [var.subnet_id_public] */
-
-  /* enable_deletion_protection = true
-
-  access_logs {
-    bucket  = aws_s3_bucket.lb_logs.bucket
-    prefix  = "test-lb"
-    enabled = true
-  }
+  security_groups    = [aws_security_group.app_group.id]
+  subnets            = [
+    aws_subnet.sre_viktor_tf_public.id,
+    aws_subnet.sre_viktor_tf_public_b.id
+    ]
 
   tags = {
-    Environment = "production"
+    Name = "sre-viktor-tf-lb"
+  }
+  /* health_check {
+    healthy_threshold = 2
+    unhealthy_threshold = 2
+    timeout = 3
+    interval = 30
+    target = "HTTP:80/"
+  }
+
+  listener {
+    lb_port = 80
+    lb_protocol = "http"
+    instance_port = "80"
+    instance_protocol = "http"
   } */
+} 
+
+# Target group
+resource "aws_lb_target_group" "sre-viktor-tf-tg" {
+  name        = "sre-viktor-tf-tg"
+  port        = 80
+  protocol    = "HTTP"
+  target_type = "instance"
+  vpc_id      = aws_vpc.sre_viktor_tf_vpc.id
+
+  tags = {
+    Name = "sre-viktor-tf-tg"
+  }
 }
 
+resource "aws_lb_target_group_attachment" "sre-viktor-tf-tg-att" {
+    target_group_arn = aws_lb_target_group.sre-viktor-tf-tg.arn
+    target_id = aws_instance.app_instance.id
+    port = 80
+}
+
+resource "aws_lb_listener" "sre-viktor-tf-lst" {
+  load_balancer_arn = aws_lb.sre-viktor-tf-lb.arn
+  port              = "80"
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.sre-viktor-tf-tg.arn
+  }
+}
+
+# Auto-scaling group
 
