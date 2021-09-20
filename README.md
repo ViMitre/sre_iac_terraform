@@ -2,8 +2,7 @@
 
 ## What is Terraform
 Terraform is an Infrastructure As Code tool used to automate orchestration tasks.
-## Why Terraform
-## Setting up Terraform
+
 ### Securing AWS keys for Terraform
 - Create environment variable to secure AWS keys
 - Restart the terminal
