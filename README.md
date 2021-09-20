@@ -1,6 +1,7 @@
 # Terraform
 
 ## What is Terraform
+Terraform is an Infrastructure As Code tool used to automate orchestration tasks.
 ## Why Terraform
 ## Setting up Terraform
 ### Securing AWS keys for Terraform
@@ -49,3 +50,22 @@ All other commands:
   version       Show the current Terraform version
   workspace     Workspace management
 ```
+
+Create a `variable.tf` file and store variables that will be used later. Example:
+```
+variable "region" {
+    default = "eu-west-1"
+}
+```
+You can refer to a variable in this format: `var.region`
+
+## Steps 
+- Create VPC 
+- Subnets
+- Security groups
+- Internet gateway
+- Route table association
+- Instances
+
+See `main.tf` file for details
+
