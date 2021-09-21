@@ -181,6 +181,10 @@ resource "aws_launch_configuration" "sre-viktor-tf-lt" {
   security_groups = [aws_security_group.app_group.id]
   associate_public_ip_address = true
 
+  tags = {
+    Name = "sre-viktor-tf-lt"
+  }
+
 
   /* user_data = < /usr/share/nginx/html/index.html
 chkconfig nginx on
@@ -255,3 +259,32 @@ resource "aws_lb_listener" "sre-viktor-tf-lst" {
 
 # Auto-scaling group
 
+resource "aws_autoscaling_group" "sre-viktor-tf-asg" {
+    name = "sre-viktor-tf-asg"
+
+    min_size = 1
+    desired_capacity = 1
+    max_size = 3
+
+    vpc_zone_identifier = [
+    aws_subnet.sre_viktor_tf_public.id,
+    aws_subnet.sre_viktor_tf_public_b.id
+    ]
+
+    launch_configuration = aws_launch_configuration.sre-viktor-tf-lt.name
+}
+
+resource "aws_autoscaling_policy" "sre-viktor-app-asg-pol" {
+    name = "sre-viktor-app-asg-pol"
+    policy_type = "TargetTrackingScaling"
+    estimated_instance_warmup = 100
+    autoscaling_group_name = aws_autoscaling_group.sre-viktor-tf-asg.name
+
+    target_tracking_configuration {
+        predefined_metric_specification {
+            predefined_metric_type = "ASGNetworkIn"
+          
+        }
+        target_value = 1000.0
+    }
+}
