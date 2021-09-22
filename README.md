@@ -15,11 +15,7 @@ provider "aws" {
 ```
 - Run this with `terraform init`
 ## Create resources on AWS
-### Start an EC2 instance using the app AMI
-- AMI id
-- `sre_key.pem` file
-- Public IP
-- Type of instance `t2.micro`
+
 ## Commands
 ```
 Main commands:
