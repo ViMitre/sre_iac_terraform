@@ -14,7 +14,6 @@ provider "aws" {
 }
 ```
 - Run this with `terraform init`
-## Create resources on AWS
 
 ## Commands
 ```
